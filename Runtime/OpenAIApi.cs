@@ -56,7 +56,7 @@ namespace OpenAI
             },
             Culture = CultureInfo.InvariantCulture
         };
-        
+
         /// <summary>
         ///     Dispatches an HTTP request to the specified path with the specified method and optional payload.
         /// </summary>
@@ -65,7 +65,7 @@ namespace OpenAI
         /// <param name="payload">An optional byte array of json payload to include in the request.</param>
         /// <typeparam name="T">Response type of the request.</typeparam>
         /// <returns>A Task containing the response from the request as the specified type.</returns>
-        private async Task<T> DispatchRequest<T>(string path, string method, byte[] payload = null) where T: IResponse
+        private async Task<T> DispatchRequest<T>(string path, string method, byte[] payload = null, CancellationToken cancellationToken = default) where T : IResponse
         {
             T data;
             
@@ -73,8 +73,12 @@ namespace OpenAI
             {
                 request.method = method;
                 request.SetHeaders(Configuration, ContentType.ApplicationJson);
-                
+
+                await using var cancellation = cancellationToken.Register(() => request.Abort());
+
                 var asyncOperation = request.SendWebRequest();
+
+                cancellationToken.ThrowIfCancellationRequested();
 
                 while (!asyncOperation.isDone) await Task.Yield();
                 
@@ -244,18 +248,18 @@ namespace OpenAI
             
             DispatchRequest(path, UnityWebRequest.kHttpVerbPOST, onResponse, onComplete, token, payload);
         }
-        
+
         /// <summary>
         ///     Creates a chat completion request as in ChatGPT.
         /// </summary>
         /// <param name="request">See <see cref="CreateChatCompletionRequest"/></param>
         /// <returns>See <see cref="CreateChatCompletionResponse"/></returns>
-        public async Task<CreateChatCompletionResponse> CreateChatCompletion(CreateChatCompletionRequest request)
+        public async Task<CreateChatCompletionResponse> CreateChatCompletion(CreateChatCompletionRequest request, CancellationToken cancellationToken = default)
         {
             var path = $"{BASE_PATH}/chat/completions";
             var payload = CreatePayload(request);
-            
-            return await DispatchRequest<CreateChatCompletionResponse>(path, UnityWebRequest.kHttpVerbPOST, payload);
+
+            return await DispatchRequest<CreateChatCompletionResponse>(path, UnityWebRequest.kHttpVerbPOST, payload, cancellationToken: cancellationToken);
         }
         
         /// <summary>
